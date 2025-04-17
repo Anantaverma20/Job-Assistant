@@ -1,0 +1,6 @@
+streamlit
+google-generativeai
+nltk
+PyMuPDF
+python-docx
+scikit-learn
