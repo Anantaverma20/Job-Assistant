@@ -45,7 +45,7 @@ def extract_keywords(text):
 
 import google.generativeai as genai
 
-genai.configure(api_key="GEMINI_API_KEY")
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 from google.colab import files
 import fitz  # PyMuPDF
@@ -109,7 +109,8 @@ embedding_model = genai.GenerativeModel("models/embedding-001")
 import google.generativeai as genai
 
 # 🔐 Replace with your real API key
-genai.configure(api_key="GEMINI_API_KEY")
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+
 
 def get_embedding(text):
     response = genai.embed_content(
@@ -212,7 +213,7 @@ highlight_missing_keywords(job_text, resume_text)
 import google.generativeai as genai
 
 # Use your Gemini API key
-genai.configure(api_key="GEMINI_API_KEY")
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("models/gemini-2.5-pro-exp-03-25")
 
 def find_jobs_from_resume(resume_text):
@@ -285,7 +286,7 @@ def get_weighted_score(cosine_score, jd_text, resume_text):
 # 
 # 
 # # Configure Gemini
-# genai.configure(api_key="GEMINI_API_KEY")
+# genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 # embed_model = "models/embedding-001"
 # text_model = genai.GenerativeModel("models/gemini-2.5-pro-exp-03-25")
 # 
