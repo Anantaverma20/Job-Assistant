@@ -21,7 +21,7 @@ This notebook helps you:
 ---
 """)
 
-!pip install -q nltk
+
 
 import nltk
 nltk.download('punkt')
@@ -39,9 +39,6 @@ def extract_keywords(text):
     keywords = [w for w in words if w not in stop_words and len(w) > 2]
     return set(keywords)
 
-!pip install -q google-generativeai PyMuPDF python-docx scikit-learn
-
-!pip install -q google-generativeai PyMuPDF python-docx scikit-learn
 
 import google.generativeai as genai
 
@@ -236,7 +233,6 @@ Give practical, clear suggestions.
 job_suggestions = find_jobs_from_resume(resume_text)
 print(job_suggestions)
 
-!pip install streamlit pyngrok
 
 # 🧠 Required NLP tools
 import nltk
@@ -265,7 +261,6 @@ def get_weighted_score(cosine_score, jd_text, resume_text):
     keyword_score = get_keyword_match_score(jd_text, resume_text)
     return 0.6 * cosine_score + 0.4 * keyword_score
 
-!pip install PyPDF2
 
 # Commented out IPython magic to ensure Python compatibility.
 # %%writefile app.py
