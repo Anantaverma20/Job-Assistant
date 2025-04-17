@@ -414,23 +414,4 @@ def get_weighted_score(cosine_score, jd_text, resume_text):
 # #     else:
 # #         st.warning("⚠️ Please upload a resume to get job suggestions.")
 
-!ngrok config add-authtoken 2oqzDv6AutmTSC3rDhobL2UW0Wq_4kszUDA6V5suzr8hcPVZ7
-
-from pyngrok import ngrok
-import os
-
-# Kill any previous tunnels
-ngrok.kill()
-
-# Start Streamlit app in the background
-os.system('streamlit run app.py &')
-
-# Wait a moment for the server to start
-import time
-time.sleep(5)
-
-# Start ngrok tunnel using HTTP protocol explicitly
-public_url = ngrok.connect("8501", "http")
-print("🌐 Streamlit app is live at:", public_url)
-
-"""---"""
+streamlit run app.py
