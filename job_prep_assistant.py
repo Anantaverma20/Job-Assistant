@@ -7,22 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1gVDv8FcRH7gZ7Sk4QADpEzvtak3R3eXV
 """
 
-from IPython.display import Markdown
-
-Markdown("""
-# Job Prep Assistant
-
-This notebook helps you:
-- Upload your resume and a job description
-- Parse & compare them using Google Gemini embeddings
-- Show similarity score
-- Get resume feedback powered by Gemini 2.5 Pro Experimental Model
-
----
-""")
-
-
-
 import nltk
 nltk.download('punkt')
 nltk.download('stopwords')
