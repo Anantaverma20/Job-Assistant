@@ -409,4 +409,3 @@ def get_weighted_score(cosine_score, jd_text, resume_text):
 # #     else:
 # #         st.warning("⚠️ Please upload a resume to get job suggestions.")
 
-streamlit run app.py
