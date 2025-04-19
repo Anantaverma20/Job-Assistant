@@ -1,6 +1,5 @@
 streamlit
 google-generativeai
-nltk
-PyMuPDF
-python-docx
 scikit-learn
+nltk
+PyPDF2
