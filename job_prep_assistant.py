@@ -247,150 +247,150 @@ def get_weighted_score(cosine_score, jd_text, resume_text):
     return 0.6 * cosine_score + 0.4 * keyword_score
 
 
-# Commented out IPython magic to ensure Python compatibility.
-%%writefile app.py
-import streamlit as st
-import google.generativeai as genai
-from sklearn.metrics.pairwise import cosine_similarity
-from nltk.corpus import stopwords
-import streamlit as st
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from sklearn.metrics.pairwise import cosine_similarity
-import google.generativeai as genai
-from PyPDF2 import PdfReader
+# # Commented out IPython magic to ensure Python compatibility.
+# %%writefile app.py
+# import streamlit as st
+# import google.generativeai as genai
+# from sklearn.metrics.pairwise import cosine_similarity
+# from nltk.corpus import stopwords
+# import streamlit as st
+# import nltk
+# from nltk.tokenize import word_tokenize
+# from nltk.corpus import stopwords
+# from sklearn.metrics.pairwise import cosine_similarity
+# import google.generativeai as genai
+# from PyPDF2 import PdfReader
 
-nltk.download('punkt')
-nltk.download('stopwords')
+# nltk.download('punkt')
+# nltk.download('stopwords')
 
 
-# Configure Gemini
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-embed_model = "models/embedding-001"
-text_model = genai.GenerativeModel("models/gemini-2.5-pro-exp-03-25")
+# # Configure Gemini
+# genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# embed_model = "models/embedding-001"
+# text_model = genai.GenerativeModel("models/gemini-2.5-pro-exp-03-25")
 
-# Function to extract keywords from text
-def extract_keywords(text):
-    stop_words = set(stopwords.words('english'))
-    words = word_tokenize(text.lower())
-    keywords = [word for word in words if word.isalpha() and word not in stop_words]
-    return set(keywords)
+# # Function to extract keywords from text
+# def extract_keywords(text):
+#     stop_words = set(stopwords.words('english'))
+#     words = word_tokenize(text.lower())
+#     keywords = [word for word in words if word.isalpha() and word not in stop_words]
+#     return set(keywords)
 
-# Function to calculate keyword match score
-def get_keyword_match_score(jd_text, resume_text):
-    jd_keywords = extract_keywords(jd_text)
-    resume_keywords = extract_keywords(resume_text)
-    matched = jd_keywords.intersection(resume_keywords)
-    return len(matched) / len(jd_keywords) if jd_keywords else 0
+# # Function to calculate keyword match score
+# def get_keyword_match_score(jd_text, resume_text):
+#     jd_keywords = extract_keywords(jd_text)
+#     resume_keywords = extract_keywords(resume_text)
+#     matched = jd_keywords.intersection(resume_keywords)
+#     return len(matched) / len(jd_keywords) if jd_keywords else 0
 
-# Function to calculate weighted ATS-style score
-def get_weighted_score(cosine_score, jd_text, resume_text):
-    keyword_score = get_keyword_match_score(jd_text, resume_text)
-    return 0.6 * cosine_score + 0.4 * keyword_score
+# # Function to calculate weighted ATS-style score
+# def get_weighted_score(cosine_score, jd_text, resume_text):
+#     keyword_score = get_keyword_match_score(jd_text, resume_text)
+#     return 0.6 * cosine_score + 0.4 * keyword_score
 
-# Function to get embeddings
-def get_embedding(text):
-    response = genai.embed_content(model=embed_model, content=text, task_type="RETRIEVAL_DOCUMENT")
-    return response['embedding']
+# # Function to get embeddings
+# def get_embedding(text):
+#     response = genai.embed_content(model=embed_model, content=text, task_type="RETRIEVAL_DOCUMENT")
+#     return response['embedding']
 
-# Function to calculate cosine similarity
-def get_similarity_score(emb1, emb2):
-    return cosine_similarity([emb1], [emb2])[0][0]
+# # Function to calculate cosine similarity
+# def get_similarity_score(emb1, emb2):
+#     return cosine_similarity([emb1], [emb2])[0][0]
 
-# Function to generate feedback
-def get_feedback(resume, jd):
-    prompt = f"""
-Compare the following resume and job description:
+# # Function to generate feedback
+# def get_feedback(resume, jd):
+#     prompt = f"""
+# Compare the following resume and job description:
 
-Resume:
-{resume}
+# Resume:
+# {resume}
 
-Job Description:
-{jd}
+# Job Description:
+# {jd}
 
-Provide:
-- A match score (0–100)
-- Missing skills
-- Format improvement tips
-- Summary of strengths and weaknesses
-"""
-    return text_model.generate_content(prompt).text
+# Provide:
+# - A match score (0–100)
+# - Missing skills
+# - Format improvement tips
+# - Summary of strengths and weaknesses
+# """
+#     return text_model.generate_content(prompt).text
 
-# Function to suggest jobs
-def find_jobs(resume):
-    prompt = f"""
-Given this resume:
+# # Function to suggest jobs
+# def find_jobs(resume):
+#     prompt = f"""
+# Given this resume:
 
-{resume}
+# {resume}
 
-Suggest:
-1. 3–5 job titles this person should apply for
-2. Companies hiring these roles
-3. Best job boards
-4. Search keywords
-"""
-    return text_model.generate_content(prompt).text
+# Suggest:
+# 1. 3–5 job titles this person should apply for
+# 2. Companies hiring these roles
+# 3. Best job boards
+# 4. Search keywords
+# """
+#     return text_model.generate_content(prompt).text
 
-# Streamlit UI
-st.title("AI Job Prep Assistant")
+# # Streamlit UI
+# st.title("AI Job Prep Assistant")
 
-# File uploader for PDF resumes
-uploaded_file = st.file_uploader("Upload your Resume (PDF format)", type="pdf")
+# # File uploader for PDF resumes
+# uploaded_file = st.file_uploader("Upload your Resume (PDF format)", type="pdf")
 
-# Text area for job description
-jd = st.text_area("Paste Job Description")
+# # Text area for job description
+# jd = st.text_area("Paste Job Description")
 
-# Initialize resume_text variable
-resume_text = ""
+# # Initialize resume_text variable
+# resume_text = ""
 
-# Extract text from uploaded PDF
-if uploaded_file is not None:
-    try:
-        pdf_reader = PdfReader(uploaded_file)
-        for page in pdf_reader.pages:
-            resume_text += page.extract_text()
-        st.success("✅ Resume uploaded and text extracted successfully.")
-    except Exception as e:
-        st.error(f"❌ Error reading PDF file: {e}")
+# # Extract text from uploaded PDF
+# if uploaded_file is not None:
+#     try:
+#         pdf_reader = PdfReader(uploaded_file)
+#         for page in pdf_reader.pages:
+#             resume_text += page.extract_text()
+#         st.success("✅ Resume uploaded and text extracted successfully.")
+#     except Exception as e:
+#         st.error(f"❌ Error reading PDF file: {e}")
 
-# Analyze & Score button
-if st.button("Analyze & Score"):
-    if resume_text and jd:
-        st.session_state.r_emb = get_embedding(resume_text)
-        st.session_state.jd_emb = get_embedding(jd)
-        score = get_similarity_score(st.session_state.r_emb, st.session_state.jd_emb)
-        feedback = get_feedback(resume_text, jd)
-        st.success(f"✅ Match Score: {score*100:.2f}%")
-        st.markdown("### 📋 Feedback")
-        st.write(feedback)
-        missing_keywords = extract_keywords(jd) - extract_keywords(resume_text)
-        st.markdown("### ❌ Missing Keywords:")
-        st.write(", ".join(sorted(missing_keywords)))
-    else:
-        st.warning("⚠️ Please upload a resume and enter a job description.")
-
-# Show Score Breakdown button
-if st.button("📊 Show Score Breakdown"):
-    if "r_emb" in st.session_state and "jd_emb" in st.session_state:
-        cosine_score = get_similarity_score(st.session_state.r_emb, st.session_state.jd_emb)
-        keyword_score = get_keyword_match_score(jd, resume_text)
-        weighted_score = get_weighted_score(cosine_score, jd, resume_text)
-
-        st.markdown("### 🔍 Accuracy Dashboard")
-        st.metric("🔗 Cosine Similarity", f"{cosine_score * 100:.2f}%")
-        st.metric("🧩 Keyword Match", f"{keyword_score * 100:.2f}%")
-        st.metric("🏆 Weighted ATS Score", f"{weighted_score * 100:.2f}%")
-        st.info("ATS score = 60% semantic similarity + 40% keyword overlap")
-    else:
-        st.warning("❗ Please run 'Analyze & Score' first.")
-
-# # Job Finder Agent button
-# if st.button("Job Finder Agent"):
-#     if resume_text:
-#         jobs = find_jobs(resume_text)
-#         st.markdown("### 🎯 Job Suggestions")
-#         st.write(jobs)
+# # Analyze & Score button
+# if st.button("Analyze & Score"):
+#     if resume_text and jd:
+#         st.session_state.r_emb = get_embedding(resume_text)
+#         st.session_state.jd_emb = get_embedding(jd)
+#         score = get_similarity_score(st.session_state.r_emb, st.session_state.jd_emb)
+#         feedback = get_feedback(resume_text, jd)
+#         st.success(f"✅ Match Score: {score*100:.2f}%")
+#         st.markdown("### 📋 Feedback")
+#         st.write(feedback)
+#         missing_keywords = extract_keywords(jd) - extract_keywords(resume_text)
+#         st.markdown("### ❌ Missing Keywords:")
+#         st.write(", ".join(sorted(missing_keywords)))
 #     else:
-#         st.warning("⚠️ Please upload a resume to get job suggestions.")
+#         st.warning("⚠️ Please upload a resume and enter a job description.")
+
+# # Show Score Breakdown button
+# if st.button("📊 Show Score Breakdown"):
+#     if "r_emb" in st.session_state and "jd_emb" in st.session_state:
+#         cosine_score = get_similarity_score(st.session_state.r_emb, st.session_state.jd_emb)
+#         keyword_score = get_keyword_match_score(jd, resume_text)
+#         weighted_score = get_weighted_score(cosine_score, jd, resume_text)
+
+#         st.markdown("### 🔍 Accuracy Dashboard")
+#         st.metric("🔗 Cosine Similarity", f"{cosine_score * 100:.2f}%")
+#         st.metric("🧩 Keyword Match", f"{keyword_score * 100:.2f}%")
+#         st.metric("🏆 Weighted ATS Score", f"{weighted_score * 100:.2f}%")
+#         st.info("ATS score = 60% semantic similarity + 40% keyword overlap")
+#     else:
+#         st.warning("❗ Please run 'Analyze & Score' first.")
+
+# # # Job Finder Agent button
+# # if st.button("Job Finder Agent"):
+# #     if resume_text:
+# #         jobs = find_jobs(resume_text)
+# #         st.markdown("### 🎯 Job Suggestions")
+# #         st.write(jobs)
+# #     else:
+# #         st.warning("⚠️ Please upload a resume to get job suggestions.")
 
