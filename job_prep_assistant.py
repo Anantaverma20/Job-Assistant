@@ -54,7 +54,7 @@ Review the following resume and job description. Assign an ATS compatibility sco
 3. Education level
 4. Experience relevance
 
-Output only a numeric match score (0 to 100), followed by 2-3 key differences.
+Output only a numeric match score (0 to 100), give a descriptive feedback based on the differences and what matches and suggestion for improvement.
 
 Resume:
 {resume}
