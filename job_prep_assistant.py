@@ -1,32 +1,22 @@
 import streamlit as st
 import google.generativeai as genai
 from sklearn.metrics.pairwise import cosine_similarity
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
 from PyPDF2 import PdfReader
-import nltk
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import re
 
-# 🛠 Ensure required NLTK resources are available
-try:
-    nltk.data.find("tokenizers/punkt")
-except LookupError:
-    nltk.download("punkt")
-
-try:
-    nltk.data.find("corpora/stopwords")
-except LookupError:
-    nltk.download("stopwords")
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 embed_model = "models/embedding-001"
 text_model = genai.GenerativeModel("models/gemini-2.5-pro-exp-03-25")
 
 # --- Utilities ---
+
+
 def extract_keywords(text):
-    stop_words = set(stopwords.words('english'))
-    words = word_tokenize(text.lower())
-    return set([word for word in words if word.isalpha() and word not in stop_words])
+    words = text.lower().split()
+    keywords = [word.strip(".,!?()[]{}\"':;") for word in words if word.isalpha() and word not in ENGLISH_STOP_WORDS]
+    return set(keywords)
 
 def get_keyword_match_score(jd_text, resume_text):
     jd_keywords = extract_keywords(jd_text)
