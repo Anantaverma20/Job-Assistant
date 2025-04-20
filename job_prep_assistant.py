@@ -7,8 +7,9 @@ from PyPDF2 import PdfReader
 import nltk
 import re
 
-nltk.download('punkt')
-nltk.download('stopwords')
+# Download only if missing
+nltk.download("punkt", quiet=True)
+nltk.download("stopwords", quiet=True)
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 embed_model = "models/embedding-001"
