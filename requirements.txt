@@ -6,4 +6,3 @@ PyPDF2
 pandas
 requests
 spaCy
-en_core_web_smen_core_web_sm
