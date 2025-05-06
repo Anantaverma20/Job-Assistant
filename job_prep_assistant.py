@@ -15,7 +15,7 @@ import google.generativeai as genai
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 # 2) Embedding model
-EMBEDDING_MODEL = "embed-text-bison-001"  # Gemini text embedding
+EMBEDDING_MODEL = "models/embedding-001"  # Gemini text embedding
 
 # 3) Weights for final score
 WEIGHTS = {
@@ -105,7 +105,7 @@ def compute_ats_score(resume_text: str, jd_text: str,
 # ─── STREAMLIT UI ──────────────────────────────────────────────────────────────
 
 st.set_page_config(page_title="ATS Resume Matcher", layout="wide")
-st.title("🔍 ATS-Style Resume ↔️ JD Matcher")
+st.title("ATS System")
 
 with st.sidebar:
     st.header("Settings")
