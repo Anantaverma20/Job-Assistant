@@ -8,7 +8,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from PyPDF2 import PdfReader
 import google.generativeai as genai
-
+import requests
 # ─── CONFIG ────────────────────────────────────────────────────────────────────
 
 # 1) Configure Gemini API (set your API key as env var: GEMINI_API_KEY)
