@@ -183,7 +183,7 @@ Recommendations:
 
 # Streamlit App
 def main():
-    st.title("🔍 Advanced ATS Resume Matcher")
+    st.title("Advanced ATS Resume Matcher")
     
     # Sidebar for additional controls
     st.sidebar.header("ATS Matching Settings")
