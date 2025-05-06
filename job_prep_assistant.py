@@ -1,125 +1,185 @@
-import streamlit as st
-import google.generativeai as genai
-from sklearn.metrics.pairwise import cosine_similarity
-from PyPDF2 import PdfReader
-from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
 import re
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Configuration and Setup
-st.set_page_config(page_title="ATS Resume Matcher", page_icon="📄")
-
-# API Configuration
-try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except KeyError:
-    st.error("Gemini API key not found. Please set up your API key in Streamlit secrets.")
-
-# Models
-embed_model = "models/embedding-001"
-text_model = genai.GenerativeModel("models/gemini-1.5-pro-latest")
-
-# Advanced Keyword Extraction and Matching
-class ATSScanner:
+class AdvancedATSMatcher:
     @staticmethod
-    def extract_keywords(text, min_word_length=3):
+    def preprocess_text(text):
         """
-        Enhanced keyword extraction with more robust filtering
+        Preprocess text for matching
+        - Convert to lowercase
+        - Remove special characters
+        - Split into words
         """
-        # Convert to lowercase and split
-        words = text.lower().split()
+        # Convert to lowercase
+        text = text.lower()
         
-        # Advanced filtering
-        keywords = [
-            word.strip(".,!?()[]{}\"':;") 
-            for word in words 
-            if (word.isalpha() and 
-                len(word) >= min_word_length and 
-                word not in ENGLISH_STOP_WORDS)
+        # Remove special characters and digits
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        
+        return text
+
+    @staticmethod
+    def extract_skill_keywords(text):
+        """
+        Extract specific skill-related keywords
+        """
+        # List of key skills and technical terms
+        skill_keywords = [
+            # Technical Skills
+            'python', 'machine learning', 'deep learning', 'data science', 
+            'statistical modeling', 'nlp', 'data mining', 'sql', 
+            'data visualization', 'pandas', 'numpy', 'scikit-learn', 
+            'tensorflow', 'keras', 'pytorch', 'llms', 'ai',
+            
+            # Methodological Skills
+            'causal inference', 'metrics design', 'a/b testing', 
+            'statistical reasoning', 'predictive modeling',
+            
+            # Business Skills
+            'business acumen', 'stakeholder management', 
+            'project management', 'financial performance',
+            
+            # Engineering Skills
+            'code testing', 'infrastructure design', 
+            'software engineering', 'agile', 'ci/cd',
+            
+            # Soft Skills
+            'leadership', 'collaboration', 'communication', 
+            'problem solving', 'critical thinking'
         ]
         
-        return list(set(keywords))
+        # Find matches in the text
+        found_skills = []
+        for skill in skill_keywords:
+            if skill in text.lower():
+                found_skills.append(skill)
+        
+        return found_skills
 
     @staticmethod
-    def calculate_keyword_match(jd_text, resume_text):
+    def calculate_skill_match_score(resume_text, jd_text):
         """
-        Calculate keyword match with TF-IDF for more sophisticated matching
+        Calculate skill match score
         """
-        # Extract keywords
-        jd_keywords = ATSScanner.extract_keywords(jd_text)
-        resume_keywords = ATSScanner.extract_keywords(resume_text)
+        # Preprocess texts
+        resume_processed = AdvancedATSMatcher.preprocess_text(resume_text)
+        jd_processed = AdvancedATSMatcher.preprocess_text(jd_text)
         
-        # Create vectorizer
-        vectorizer = TfidfVectorizer().fit([' '.join(jd_keywords), ' '.join(resume_keywords)])
+        # Extract skills
+        resume_skills = AdvancedATSMatcher.extract_skill_keywords(resume_processed)
+        jd_skills = AdvancedATSMatcher.extract_skill_keywords(jd_processed)
         
-        # Transform keywords
-        jd_vector = vectorizer.transform([' '.join(jd_keywords)])
-        resume_vector = vectorizer.transform([' '.join(resume_keywords)])
+        # Calculate skill overlap
+        matching_skills = set(resume_skills) & set(jd_skills)
         
-        # Calculate cosine similarity
-        similarity = cosine_similarity(jd_vector, resume_vector)[0][0]
+        # Scoring logic
+        skill_match_score = len(matching_skills) / len(set(jd_skills)) if jd_skills else 0
         
-        return similarity
+        return {
+            'match_percentage': skill_match_score * 100,
+            'matching_skills': list(matching_skills),
+            'total_jd_skills': len(jd_skills),
+            'matched_skills': len(matching_skills)
+        }
 
     @staticmethod
-    def calculate_semantic_similarity(jd_text, resume_text):
+    def calculate_experience_relevance(resume_text, jd_text):
         """
-        Use Gemini embeddings for semantic similarity
+        Calculate experience relevance score
         """
+        # Key experience indicators
+        experience_keywords = [
+            'internship', 'project', 'developed', 'implemented', 
+            'optimized', 'improved', 'created', 'analyzed'
+        ]
+        
+        # Count relevant experience indicators
+        resume_experience_indicators = sum(
+            resume_text.lower().count(keyword) for keyword in experience_keywords
+        )
+        jd_experience_indicators = sum(
+            jd_text.lower().count(keyword) for keyword in experience_keywords
+        )
+        
+        # Normalize and score
         try:
-            jd_embedding = genai.embed_content(
-                model=embed_model, 
-                content=jd_text, 
-                task_type="RETRIEVAL_DOCUMENT"
-            )['embedding']
-            
-            resume_embedding = genai.embed_content(
-                model=embed_model, 
-                content=resume_text, 
-                task_type="RETRIEVAL_DOCUMENT"
-            )['embedding']
-            
-            # Calculate cosine similarity
-            similarity = np.dot(jd_embedding, resume_embedding) / (
-                np.linalg.norm(jd_embedding) * np.linalg.norm(resume_embedding)
+            experience_relevance = min(
+                resume_experience_indicators / jd_experience_indicators, 
+                1.0
             )
-            
-            return similarity
-        except Exception as e:
-            st.error(f"Semantic similarity calculation error: {e}")
-            return 0
+        except ZeroDivisionError:
+            experience_relevance = 0.5
+        
+        return experience_relevance * 100
 
     @staticmethod
-    def generate_comprehensive_feedback(resume_text, jd_text):
+    def calculate_comprehensive_ats_score(resume_text, jd_text):
         """
-        Generate detailed feedback using Gemini
+        Calculate comprehensive ATS score
         """
-        try:
-            prompt = f"""Provide a comprehensive ATS compatibility analysis:
+        # Skill Match Score
+        skill_match = AdvancedATSMatcher.calculate_skill_match_score(resume_text, jd_text)
+        
+        # Experience Relevance
+        experience_score = AdvancedATSMatcher.calculate_experience_relevance(resume_text, jd_text)
+        
+        # TF-IDF Cosine Similarity
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform([resume_text, jd_text])
+        cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+        
+        # Weighted Scoring
+        # Adjust weights based on importance
+        skill_weight = 0.4
+        experience_weight = 0.3
+        cosine_weight = 0.3
+        
+        comprehensive_score = (
+            skill_match['match_percentage'] * skill_weight +
+            experience_score * experience_weight +
+            cosine_sim * 100 * cosine_weight
+        )
+        
+        return {
+            'overall_score': round(comprehensive_score, 2),
+            'skill_match': skill_match,
+            'experience_score': round(experience_score, 2),
+            'cosine_similarity': round(cosine_sim * 100, 2)
+        }
 
-1. Skill Matching: Identify matching and missing skills
-2. Experience Relevance: Compare resume experience with job requirements
-3. Keyword Optimization: Suggest keywords to improve
-4. Overall Improvement Recommendations
+# Example usage and testing
+def analyze_resume_match(resume_text, jd_text):
+    """
+    Comprehensive ATS matching analysis
+    """
+    match_result = AdvancedATSMatcher.calculate_comprehensive_ats_score(resume_text, jd_text)
+    
+    # Generate detailed feedback
+    feedback = f"""
+ATS Compatibility Analysis:
+--------------------------
+Overall Match Score: {match_result['overall_score']}%
 
-Job Description:
-{jd_text}
+Detailed Breakdown:
+1. Skill Match: {match_result['skill_match']['match_percentage']}%
+   - Total Skills in Job Description: {match_result['skill_match']['total_jd_skills']}
+   - Matched Skills: {match_result['skill_match']['matched_skills']}
+   - Matching Skills: {', '.join(match_result['skill_match']['matching_skills'])}
 
-Resume:
-{resume_text}
+2. Experience Relevance: {match_result['experience_score']}%
 
-Output Format:
-- Matching Skills: [List]
-- Missing Skills: [List]
-- Experience Match: [Percentage and Brief Analysis]
-- Keyword Recommendations: [List]
-- Overall Improvement Suggestions: [Concise Advice]
+3. Semantic Similarity: {match_result['cosine_similarity']}%
+
+Recommendations:
+- Focus on highlighting skills that match the job description
+- Quantify achievements in your resume
+- Align your experience with the specific requirements
 """
-            response = text_model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            st.error(f"Feedback generation error: {e}")
-            return "Unable to generate detailed feedback."
+    
+    return match_result, feedback
+
 
 # Streamlit App
 def main():
