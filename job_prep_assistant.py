@@ -15,7 +15,7 @@ import requests
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 # 2) Embedding model
-EMBEDDING_MODEL = "models/embedding-001"  # Gemini text embedding
+EMBEDDING_MODEL = genai.GenerativeModel("models/embedding-001")
 
 # 3) Weights for final score
 WEIGHTS = {
