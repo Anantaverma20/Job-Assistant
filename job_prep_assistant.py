@@ -6,21 +6,11 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from PyPDF2 import PdfReader
-import spacy
-
-# Load spaCy model for advanced NLP processing
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    st.error("Please install spaCy and en_core_web_sm model. Run:\n"
-             "pip install spacy\n"
-             "python -m spacy download en_core_web_sm")
-    st.stop()
 
 class AdvancedATSMatcher:
     def __init__(self, gemini_api_key=None):
         """
-        Initialize ATS Matcher with advanced NLP and AI capabilities
+        Initialize ATS Matcher with advanced AI capabilities
         """
         # Configure Gemini API if key is provided
         if gemini_api_key:
@@ -47,29 +37,34 @@ class AdvancedATSMatcher:
         
         return text
 
-    def extract_entities(self, text):
+    def extract_keywords(self, text):
         """
-        Extract named entities and key information
+        Advanced keyword extraction
         """
-        doc = nlp(text)
+        # Convert to lowercase
+        text = text.lower()
         
-        entities = {
-            'skills': [],
-            'organizations': [],
-            'job_titles': []
-        }
+        # Remove punctuation and split into words
+        words = re.findall(r'\b\w+\b', text)
         
-        for ent in doc.ents:
-            if ent.label_ == 'ORG':
-                entities['organizations'].append(ent.text)
-            elif ent.label_ == 'WORK_OF_ART':
-                entities['job_titles'].append(ent.text)
+        # Remove common stop words
+        stop_words = set([
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 
+            'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 
+            'into', 'over', 'after'
+        ])
         
-        return entities
+        # Filter out stop words and short words
+        keywords = [
+            word for word in words 
+            if word not in stop_words and len(word) > 2
+        ]
+        
+        return keywords
 
     def advanced_skill_extraction(self, text):
         """
-        Advanced skill extraction using NLP and custom keywords
+        Advanced skill extraction using custom keywords
         """
         # Predefined skill categories
         skill_categories = {
@@ -77,22 +72,24 @@ class AdvancedATSMatcher:
                 'python', 'r', 'sql', 'java', 'c++', 'javascript',
                 'machine learning', 'deep learning', 'data science',
                 'tensorflow', 'pytorch', 'scikit-learn', 'pandas', 
-                'numpy', 'apache spark', 'hadoop', 'cloud computing'
+                'numpy', 'apache spark', 'hadoop', 'cloud computing',
+                'api', 'docker', 'kubernetes', 'git', 'linux', 
+                'data engineering', 'data analysis'
             ],
             'Soft Skills': [
                 'communication', 'leadership', 'teamwork', 
                 'problem solving', 'critical thinking', 
-                'adaptability', 'creativity'
+                'adaptability', 'creativity', 'collaboration',
+                'time management', 'conflict resolution'
             ],
             'Methodological Skills': [
                 'agile', 'scrum', 'kanban', 'waterfall',
                 'data analysis', 'statistical modeling',
-                'experimental design', 'hypothesis testing'
+                'experimental design', 'hypothesis testing',
+                'project management', 'strategic planning',
+                'risk management', 'decision making'
             ]
         }
-        
-        # Process text with spaCy
-        doc = nlp(text)
         
         # Extract skills
         extracted_skills = {
@@ -108,16 +105,11 @@ class AdvancedATSMatcher:
                 if skill in text_lower:
                     extracted_skills[category].append(skill)
         
-        # Extract potential skills from noun chunks
-        additional_skills = [
-            chunk.text.lower() 
-            for chunk in doc.noun_chunks 
-            if len(chunk.text.split()) <= 3
-        ]
-        
-        # Remove duplicates and add to technical skills
-        additional_skills = list(set(additional_skills))
-        extracted_skills['Technical Skills'].extend(additional_skills)
+        # Extract potential skills from text
+        keywords = self.extract_keywords(text)
+        extracted_skills['Technical Skills'].extend(
+            [word for word in keywords if word in skill_categories['Technical Skills']]
+        )
         
         return extracted_skills
 
@@ -156,7 +148,19 @@ class AdvancedATSMatcher:
             'overall_skill_match': skill_match_score * 100,
             'technical_match': technical_match * 100,
             'soft_skills_match': soft_skills_match * 100,
-            'methodological_match': methodological_match * 100
+            'methodological_match': methodological_match * 100,
+            'matched_technical_skills': list(
+                set(resume_skills['Technical Skills']) & 
+                set(jd_skills['Technical Skills'])
+            ),
+            'matched_soft_skills': list(
+                set(resume_skills['Soft Skills']) & 
+                set(jd_skills['Soft Skills'])
+            ),
+            'matched_methodological_skills': list(
+                set(resume_skills['Methodological Skills']) & 
+                set(jd_skills['Methodological Skills'])
+            )
         }
 
     def semantic_similarity(self, resume_text, jd_text):
@@ -220,10 +224,11 @@ Format the response as a structured professional assessment."""
         # Semantic Similarity
         semantic_sim = self.semantic_similarity(resume_text, jd_text)
         
-        # Experience Evaluation (basic implementation)
+        # Experience Evaluation
         experience_keywords = [
             'internship', 'project', 'developed', 'implemented', 
-            'managed', 'led', 'created', 'designed'
+            'managed', 'led', 'created', 'designed', 'delivered',
+            'optimized', 'improved', 'solved'
         ]
         experience_score = sum(
             resume_text.lower().count(keyword) for keyword in experience_keywords
@@ -307,6 +312,19 @@ def main():
                 st.metric("Soft Skills", f"{ats_score['skill_match']['soft_skills_match']:.2f}%")
             with skill_col3:
                 st.metric("Methodological Skills", f"{ats_score['skill_match']['methodological_match']:.2f}%")
+            
+            # Matched Skills Details
+            st.markdown("### 🏆 Matched Skills")
+            matched_col1, matched_col2, matched_col3 = st.columns(3)
+            with matched_col1:
+                st.write("**Matched Technical Skills:**")
+                st.write(", ".join(ats_score['skill_match']['matched_technical_skills']) or "No direct matches")
+            with matched_col2:
+                st.write("**Matched Soft Skills:**")
+                st.write(", ".join(ats_score['skill_match']['matched_soft_skills']) or "No direct matches")
+            with matched_col3:
+                st.write("**Matched Methodological Skills:**")
+                st.write(", ".join(ats_score['skill_match']['matched_methodological_skills']) or "No direct matches")
             
             # Advanced AI Evaluation
             if ats_matcher.text_model:
