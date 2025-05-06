@@ -1,16 +1,15 @@
+import streamlit as st
 import re
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from PyPDF2 import PdfReader
 
 class AdvancedATSMatcher:
     @staticmethod
     def preprocess_text(text):
         """
         Preprocess text for matching
-        - Convert to lowercase
-        - Remove special characters
-        - Split into words
         """
         # Convert to lowercase
         text = text.lower()
@@ -25,7 +24,6 @@ class AdvancedATSMatcher:
         """
         Extract specific skill-related keywords
         """
-        # List of key skills and technical terms
         skill_keywords = [
             # Technical Skills
             'python', 'machine learning', 'deep learning', 'data science', 
@@ -131,7 +129,6 @@ class AdvancedATSMatcher:
         cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         
         # Weighted Scoring
-        # Adjust weights based on importance
         skill_weight = 0.4
         experience_weight = 0.3
         cosine_weight = 0.3
@@ -149,7 +146,6 @@ class AdvancedATSMatcher:
             'cosine_similarity': round(cosine_sim * 100, 2)
         }
 
-# Example usage and testing
 def analyze_resume_match(resume_text, jd_text):
     """
     Comprehensive ATS matching analysis
@@ -180,75 +176,56 @@ Recommendations:
     
     return match_result, feedback
 
-
-# Streamlit App
 def main():
-    st.title("Advanced ATS Resume Matcher")
+    st.set_page_config(page_title="Advanced ATS Resume Matcher", page_icon="📄")
     
-    # Sidebar for additional controls
-    st.sidebar.header("ATS Matching Settings")
+    st.title("📄 Advanced ATS Resume Matcher")
     
-    # File Upload
-    uploaded_file = st.file_uploader(
-        "Upload Resume (PDF)", 
-        type="pdf", 
-        help="Upload your resume in PDF format"
-    )
+    # Resume Upload
+    uploaded_resume = st.file_uploader("Upload Resume (PDF)", type="pdf")
     
     # Job Description Input
-    jd = st.text_area(
-        "Paste Job Description", 
-        height=200, 
-        help="Copy and paste the full job description here"
-    )
+    jd_text = st.text_area("Paste Job Description", height=200)
     
-    # Matching Button
-    if st.button(" Analyze Resume Match"):
-        if uploaded_file and jd:
-            # Extract Resume Text
+    # Analyze Button
+    if st.button("Analyze Resume Match"):
+        if uploaded_resume and jd_text:
             try:
-                pdf_reader = PdfReader(uploaded_file)
+                # Extract Resume Text
+                pdf_reader = PdfReader(uploaded_resume)
                 resume_text = " ".join([page.extract_text() for page in pdf_reader.pages])
                 
-                # Calculate Scores
-                keyword_match = ATSScanner.calculate_keyword_match(jd, resume_text)
-                semantic_match = ATSScanner.calculate_semantic_similarity(jd, resume_text)
-                
-                # Generate Comprehensive Feedback
-                detailed_feedback = ATSScanner.generate_comprehensive_feedback(resume_text, jd)
-                
-                # Combine Scores (you can adjust weights)
-                final_score = round((keyword_match + semantic_match) * 50, 2)
+                # Perform ATS Match Analysis
+                match_result, feedback = analyze_resume_match(resume_text, jd_text)
                 
                 # Display Results
-                st.markdown("### ATS Compatibility Analysis")
+                st.markdown("### 📊 ATS Compatibility Analysis")
                 
-                # Score Visualization
+                # Score Breakdown
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Keyword Match", f"{keyword_match*100:.2f}%")
+                    st.metric("Overall Score", f"{match_result['overall_score']}%")
                 with col2:
-                    st.metric("Semantic Match", f"{semantic_match*100:.2f}%")
+                    st.metric("Skill Match", f"{match_result['skill_match']['match_percentage']}%")
                 with col3:
-                    st.metric("Overall ATS Score", f"{final_score}%")
+                    st.metric("Experience Relevance", f"{match_result['experience_score']}%")
                 
                 # Detailed Feedback
-                st.markdown("### Detailed Feedback")
-                st.write(detailed_feedback)
+                st.markdown("### 💡 Detailed Feedback")
+                st.write(feedback)
                 
                 # Recommendations Visualization
-                if final_score < 60:
-                    st.warning("Low ATS compatibility. Consider major resume revisions.")
-                elif final_score < 80:
-                    st.info("Moderate ATS compatibility. Some improvements needed.")
+                if match_result['overall_score'] < 60:
+                    st.warning("🚨 Low ATS compatibility. Consider major resume revisions.")
+                elif match_result['overall_score'] < 80:
+                    st.info("⚠️ Moderate ATS compatibility. Some improvements needed.")
                 else:
-                    st.success("High ATS compatibility. Great job!")
+                    st.success("✅ High ATS compatibility. Great job!")
             
             except Exception as e:
                 st.error(f"Error processing resume: {e}")
         else:
             st.warning("Please upload a resume and paste the job description.")
 
-# Run the app
 if __name__ == "__main__":
     main()
