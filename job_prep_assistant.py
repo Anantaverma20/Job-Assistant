@@ -1,298 +1,194 @@
-import os
-import json
-import re
-import datetime
-from typing import List, Dict, Any
-
 import streamlit as st
-import pandas as pd
+import google.generativeai as genai
+from sklearn.metrics.pairwise import cosine_similarity
+from PyPDF2 import PdfReader
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
+import re
+import numpy as np
 
-class JobAssistant:
-    def __init__(self, config_path: str = 'job_config.json'):
-        """
-        Initialize the Job Assistant with configuration settings.
-        
-        :param config_path: Path to the configuration JSON file
-        """
-        self.config = self.load_config(config_path)
-        self.job_applications = []
-        self.skills_inventory = self.config.get('skills', [])
-        self.application_log_path = self.config.get('application_log_path', 'job_applications.json')
-        
-        # Load existing applications
-        self.load_job_applications()
+# Configuration and Setup
+st.set_page_config(page_title="ATS Resume Matcher", page_icon="📄")
 
-    def load_config(self, config_path: str) -> Dict[str, Any]:
+# API Configuration
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except KeyError:
+    st.error("Gemini API key not found. Please set up your API key in Streamlit secrets.")
+
+# Models
+embed_model = "models/embedding-001"
+text_model = genai.GenerativeModel("models/gemini-1.5-pro-latest")
+
+# Advanced Keyword Extraction and Matching
+class ATSScanner:
+    @staticmethod
+    def extract_keywords(text, min_word_length=3):
         """
-        Load configuration from a JSON file.
+        Enhanced keyword extraction with more robust filtering
+        """
+        # Convert to lowercase and split
+        words = text.lower().split()
         
-        :param config_path: Path to the configuration file
-        :return: Dictionary of configuration settings
+        # Advanced filtering
+        keywords = [
+            word.strip(".,!?()[]{}\"':;") 
+            for word in words 
+            if (word.isalpha() and 
+                len(word) >= min_word_length and 
+                word not in ENGLISH_STOP_WORDS)
+        ]
+        
+        return list(set(keywords))
+
+    @staticmethod
+    def calculate_keyword_match(jd_text, resume_text):
+        """
+        Calculate keyword match with TF-IDF for more sophisticated matching
+        """
+        # Extract keywords
+        jd_keywords = ATSScanner.extract_keywords(jd_text)
+        resume_keywords = ATSScanner.extract_keywords(resume_text)
+        
+        # Create vectorizer
+        vectorizer = TfidfVectorizer().fit([' '.join(jd_keywords), ' '.join(resume_keywords)])
+        
+        # Transform keywords
+        jd_vector = vectorizer.transform([' '.join(jd_keywords)])
+        resume_vector = vectorizer.transform([' '.join(resume_keywords)])
+        
+        # Calculate cosine similarity
+        similarity = cosine_similarity(jd_vector, resume_vector)[0][0]
+        
+        return similarity
+
+    @staticmethod
+    def calculate_semantic_similarity(jd_text, resume_text):
+        """
+        Use Gemini embeddings for semantic similarity
         """
         try:
-            with open(config_path, 'r') as config_file:
-                return json.load(config_file)
-        except FileNotFoundError:
-            print(f"Config file not found at {config_path}. Creating default configuration.")
-            return {
-                'skills': [],
-                'application_log_path': 'job_applications.json',
-                'resume_template_path': 'resume_template.txt'
-            }
-        except json.JSONDecodeError:
-            print(f"Error decoding JSON from {config_path}. Using default configuration.")
-            return {}
-
-    def add_skill(self, skill: str) -> None:
-        """
-        Add a new skill to the skills inventory.
-        
-        :param skill: Skill to be added
-        """
-        if skill.lower() not in [s.lower() for s in self.skills_inventory]:
-            self.skills_inventory.append(skill)
-            self._save_skills_inventory()
-        
-    def remove_skill(self, skill: str) -> None:
-        """
-        Remove a skill from the skills inventory.
-        
-        :param skill: Skill to be removed
-        """
-        original_length = len(self.skills_inventory)
-        self.skills_inventory = [s for s in self.skills_inventory if s.lower() != skill.lower()]
-        
-        if len(self.skills_inventory) < original_length:
-            self._save_skills_inventory()
-
-    def _save_skills_inventory(self) -> None:
-        """
-        Save skills inventory to the config file.
-        """
-        try:
-            config = self.load_config('job_config.json')
-            config['skills'] = self.skills_inventory
-            with open('job_config.json', 'w') as config_file:
-                json.dump(config, config_file, indent=2)
-        except IOError:
-            st.error(f"Error saving skills inventory to job_config.json")
-
-    def record_job_application(self, job_details: Dict[str, Any]) -> None:
-        """
-        Record details of a job application.
-        
-        :param job_details: Dictionary containing job application details
-        """
-        # Validate required fields
-        required_fields = ['company', 'position', 'application_date', 'status']
-        for field in required_fields:
-            if field not in job_details:
-                raise ValueError(f"Missing required field: {field}")
-        
-        # Add unique identifier
-        job_details['id'] = len(self.job_applications) + 1
-        
-        self.job_applications.append(job_details)
-        self._save_job_applications()
-
-    def _save_job_applications(self) -> None:
-        """
-        Save job applications to a JSON file.
-        """
-        try:
-            with open(self.application_log_path, 'w') as log_file:
-                json.dump(self.job_applications, log_file, indent=2)
-        except IOError:
-            st.error(f"Error saving job applications to {self.application_log_path}")
-
-    def load_job_applications(self) -> List[Dict[str, Any]]:
-        """
-        Load job applications from the log file.
-        
-        :return: List of job applications
-        """
-        try:
-            with open(self.application_log_path, 'r') as log_file:
-                self.job_applications = json.load(log_file)
-            return self.job_applications
-        except FileNotFoundError:
-            return []
-        except json.JSONDecodeError:
-            st.error(f"Error reading job applications from {self.application_log_path}")
-            return []
-
-    def generate_resume_customization_notes(self, job_description: str) -> Dict[str, List[str]]:
-        """
-        Generate resume customization suggestions based on job description.
-        
-        :param job_description: Text of the job description
-        :return: Dictionary of customization suggestions
-        """
-        # Basic NLP-like processing (simplified)
-        job_description = job_description.lower()
-        
-        customization_notes = {
-            'highlighted_skills': [],
-            'potential_keywords': [],
-            'recommended_adjustments': []
-        }
-        
-        # Extract potential skills and keywords
-        for skill in self.skills_inventory:
-            if skill.lower() in job_description:
-                customization_notes['highlighted_skills'].append(skill)
-        
-        # Extract potential keywords (simplified)
-        potential_keywords = re.findall(r'\b[a-z]{3,}\b', job_description)
-        customization_notes['potential_keywords'] = list(set(potential_keywords))[:10]
-        
-        # Basic recommendations
-        if len(customization_notes['highlighted_skills']) < 3:
-            customization_notes['recommended_adjustments'].append(
-                "Consider adding more relevant skills to your resume"
+            jd_embedding = genai.embed_content(
+                model=embed_model, 
+                content=jd_text, 
+                task_type="RETRIEVAL_DOCUMENT"
+            )['embedding']
+            
+            resume_embedding = genai.embed_content(
+                model=embed_model, 
+                content=resume_text, 
+                task_type="RETRIEVAL_DOCUMENT"
+            )['embedding']
+            
+            # Calculate cosine similarity
+            similarity = np.dot(jd_embedding, resume_embedding) / (
+                np.linalg.norm(jd_embedding) * np.linalg.norm(resume_embedding)
             )
-        
-        return customization_notes
+            
+            return similarity
+        except Exception as e:
+            st.error(f"Semantic similarity calculation error: {e}")
+            return 0
 
-    def update_application_status(self, application_id: int, new_status: str) -> None:
+    @staticmethod
+    def generate_comprehensive_feedback(resume_text, jd_text):
         """
-        Update the status of a specific job application.
-        
-        :param application_id: Unique identifier of the job application
-        :param new_status: New status of the application
+        Generate detailed feedback using Gemini
         """
-        for application in self.job_applications:
-            if application['id'] == application_id:
-                application['status'] = new_status
-                self._save_job_applications()
-                return
-        
-        st.error(f"No application found with ID {application_id}")
+        try:
+            prompt = f"""Provide a comprehensive ATS compatibility analysis:
 
+1. Skill Matching: Identify matching and missing skills
+2. Experience Relevance: Compare resume experience with job requirements
+3. Keyword Optimization: Suggest keywords to improve
+4. Overall Improvement Recommendations
+
+Job Description:
+{jd_text}
+
+Resume:
+{resume_text}
+
+Output Format:
+- Matching Skills: [List]
+- Missing Skills: [List]
+- Experience Match: [Percentage and Brief Analysis]
+- Keyword Recommendations: [List]
+- Overall Improvement Suggestions: [Concise Advice]
+"""
+            response = text_model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            st.error(f"Feedback generation error: {e}")
+            return "Unable to generate detailed feedback."
+
+# Streamlit App
 def main():
-    # Initialize job assistant
-    job_assistant = JobAssistant()
-
-    # Streamlit app title
-    st.title('Job Application Tracker')
-
-    # Sidebar for navigation
-    menu = st.sidebar.selectbox('Menu', 
-        ['Job Applications', 'Skills Inventory', 'Resume Customization'])
-
-    if menu == 'Job Applications':
-        st.header('Job Applications')
-        
-        # Form to add new job application
-        with st.form('job_application_form'):
-            company = st.text_input('Company Name')
-            position = st.text_input('Position')
-            status_options = ['Applied', 'Interview', 'Offer', 'Rejected']
-            status = st.selectbox('Application Status', status_options)
-            submit = st.form_submit_button('Record Application')
-
-            if submit:
-                if company and position:
-                    job_application = {
-                        'company': company,
-                        'position': position,
-                        'application_date': datetime.datetime.now().isoformat(),
-                        'status': status
-                    }
-                    job_assistant.record_job_application(job_application)
-                    st.success('Job application recorded successfully!')
-                else:
-                    st.error('Please fill in all required fields.')
-
-        # Display existing job applications
-        if job_assistant.job_applications:
-            df = pd.DataFrame(job_assistant.job_applications)
-            st.dataframe(df)
-
-            # Allow status update
-            app_to_update = st.selectbox(
-                'Select Application to Update Status', 
-                [app['id'] for app in job_assistant.job_applications]
-            )
-            new_status = st.selectbox('New Status', 
-                ['Applied', 'Interview', 'Offer', 'Rejected'])
-            if st.button('Update Status'):
-                job_assistant.update_application_status(app_to_update, new_status)
-                st.success('Application status updated!')
-                st.experimental_rerun()
-
-    elif menu == 'Skills Inventory':
-        st.header('Skills Inventory')
-        
-        # Add new skill
-        new_skill = st.text_input('Add a New Skill')
-        if st.button('Add Skill'):
-            if new_skill:
-                job_assistant.add_skill(new_skill)
-                st.success(f'Skill {new_skill} added!')
-
-        # Display and remove existing skills
-        if job_assistant.skills_inventory:
-            st.subheader('Your Skills')
-            skill_to_remove = st.selectbox(
-                'Select Skill to Remove', 
-                job_assistant.skills_inventory
-            )
-            if st.button('Remove Skill'):
-                job_assistant.remove_skill(skill_to_remove)
-                st.success(f'Skill {skill_to_remove} removed!')
-                st.experimental_rerun()
-
-            # Display skills list
-            st.write('Current Skills:')
-            for skill in job_assistant.skills_inventory:
-                st.write(f"- {skill}")
-
-    elif menu == 'Resume Customization':
-        st.header('Resume Customization')
-        
-        # Job description input
-        job_description = st.text_area('Paste Job Description')
-        
-        if st.button('Analyze Job Description'):
-            if job_description:
-                customization_notes = job_assistant.generate_resume_customization_notes(job_description)
-                
-                st.subheader('Resume Customization Suggestions')
-                
-                # Highlighted Skills
-                st.write('**Highlighted Skills:**')
-                if customization_notes['highlighted_skills']:
-                    for skill in customization_notes['highlighted_skills']:
-                        st.write(f"- {skill}")
-                else:
-                    st.write("No direct skill matches found.")
-                
-                # Potential Keywords
-                st.write('**Potential Keywords:**')
-                if customization_notes['potential_keywords']:
-                    st.write(', '.join(customization_notes['potential_keywords']))
-                else:
-                    st.write("No potential keywords identified.")
-                
-                # Recommended Adjustments
-                st.write('**Recommended Adjustments:**')
-                if customization_notes['recommended_adjustments']:
-                    for adjustment in customization_notes['recommended_adjustments']:
-                        st.write(f"- {adjustment}")
-                else:
-                    st.write("No specific adjustments recommended.")
-            else:
-                st.error('Please enter a job description to analyze.')
-
-if __name__ == '__main__':
-    # Ensure config and log files exist
-    if not os.path.exists('job_config.json'):
-        with open('job_config.json', 'w') as f:
-            json.dump({'skills': [], 'application_log_path': 'job_applications.json'}, f)
+    st.title("🔍 Advanced ATS Resume Matcher")
     
-    if not os.path.exists('job_applications.json'):
-        with open('job_applications.json', 'w') as f:
-            json.dump([], f)
+    # Sidebar for additional controls
+    st.sidebar.header("ATS Matching Settings")
     
+    # File Upload
+    uploaded_file = st.file_uploader(
+        "Upload Resume (PDF)", 
+        type="pdf", 
+        help="Upload your resume in PDF format"
+    )
+    
+    # Job Description Input
+    jd = st.text_area(
+        "Paste Job Description", 
+        height=200, 
+        help="Copy and paste the full job description here"
+    )
+    
+    # Matching Button
+    if st.button(" Analyze Resume Match"):
+        if uploaded_file and jd:
+            # Extract Resume Text
+            try:
+                pdf_reader = PdfReader(uploaded_file)
+                resume_text = " ".join([page.extract_text() for page in pdf_reader.pages])
+                
+                # Calculate Scores
+                keyword_match = ATSScanner.calculate_keyword_match(jd, resume_text)
+                semantic_match = ATSScanner.calculate_semantic_similarity(jd, resume_text)
+                
+                # Generate Comprehensive Feedback
+                detailed_feedback = ATSScanner.generate_comprehensive_feedback(resume_text, jd)
+                
+                # Combine Scores (you can adjust weights)
+                final_score = round((keyword_match + semantic_match) * 50, 2)
+                
+                # Display Results
+                st.markdown("### ATS Compatibility Analysis")
+                
+                # Score Visualization
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Keyword Match", f"{keyword_match*100:.2f}%")
+                with col2:
+                    st.metric("Semantic Match", f"{semantic_match*100:.2f}%")
+                with col3:
+                    st.metric("Overall ATS Score", f"{final_score}%")
+                
+                # Detailed Feedback
+                st.markdown("### Detailed Feedback")
+                st.write(detailed_feedback)
+                
+                # Recommendations Visualization
+                if final_score < 60:
+                    st.warning("Low ATS compatibility. Consider major resume revisions.")
+                elif final_score < 80:
+                    st.info("Moderate ATS compatibility. Some improvements needed.")
+                else:
+                    st.success("High ATS compatibility. Great job!")
+            
+            except Exception as e:
+                st.error(f"Error processing resume: {e}")
+        else:
+            st.warning("Please upload a resume and paste the job description.")
+
+# Run the app
+if __name__ == "__main__":
     main()
